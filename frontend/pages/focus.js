@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavBar from '@/components/NavBar';
 import { useTheme } from '@/pages/_app';
+import { fetchTrackerData, syncTrackerData } from '@/lib/api';
 
 const DURATIONS = [
   { label: 'Short Focus', mins: 15, color: '#10b981' },
@@ -41,11 +42,26 @@ export default function FocusPage() {
   }, [status, router]);
 
   useEffect(() => {
-    try {
-      const s = localStorage.getItem('at-focus-stats');
-      if (s) setStats(JSON.parse(s));
-    } catch {}
-  }, []);
+    if (status === 'authenticated' && session?.user?.email) {
+      const loadServerData = async () => {
+        const data = await fetchTrackerData(session.user.email);
+        if (data && data.focusStats) {
+          setStats(data.focusStats);
+          localStorage.setItem('at-focus-stats', JSON.stringify(data.focusStats));
+        } else {
+          try {
+            const s = localStorage.getItem('at-focus-stats');
+            if (s) {
+              const parsed = JSON.parse(s);
+              setStats(parsed);
+              syncTrackerData(session.user.email, { focusStats: parsed });
+            }
+          } catch {}
+        }
+      };
+      loadServerData();
+    }
+  }, [session, status]);
 
   useEffect(() => {
     let interval = null;
@@ -103,6 +119,9 @@ export default function FocusPage() {
     };
     setStats(newStats);
     localStorage.setItem('at-focus-stats', JSON.stringify(newStats));
+    if (session?.user?.email) {
+      syncTrackerData(session.user.email, { focusStats: newStats });
+    }
     setShowCelebration(true);
   };
 

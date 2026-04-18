@@ -6,8 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavBar from '@/components/NavBar';
 import Feedback from '@/components/Feedback';
-import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { fetchTrackerData } from '@/lib/api';
 import { useTheme } from '@/pages/_app';
 
 const NAVIGATION_CARDS = [
@@ -102,11 +101,9 @@ export default function Home() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
-      const unsub = onSnapshot(doc(db, 'trackerSync', session.user.email), { includeMetadataChanges: true }, (docSnap) => {
-        if (docSnap.metadata.hasPendingWrites) return;
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+      const loadServerData = async () => {
+        const data = await fetchTrackerData(session.user.email);
+        if (data) {
           if (data.habits) {
             setHabits(data.habits);
             localStorage.setItem('at-habits', JSON.stringify(data.habits));
@@ -128,8 +125,8 @@ export default function Home() {
             localStorage.setItem('at-journal', JSON.stringify(data.journal));
           }
         }
-      });
-      return () => unsub(); // Teardown observer
+      };
+      loadServerData();
     }
   }, [session, status]);
 

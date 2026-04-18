@@ -5,8 +5,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import NavBar from '@/components/NavBar';
 import { useTheme } from '@/pages/_app';
-import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { fetchTrackerData } from '@/lib/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -76,10 +75,9 @@ export default function InsightsPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
-      const unsub = onSnapshot(doc(db, 'trackerSync', session.user.email), { includeMetadataChanges: true }, (docSnap) => {
-        if (docSnap.metadata.hasPendingWrites) return;
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+      const loadServerData = async () => {
+        const data = await fetchTrackerData(session.user.email);
+        if (data) {
           if (data.habits) {
             setHabits(data.habits);
             localStorage.setItem('at-habits', JSON.stringify(data.habits));
@@ -93,8 +91,8 @@ export default function InsightsPage() {
             localStorage.setItem('at-tasks', JSON.stringify(data.tasks));
           }
         }
-      });
-      return () => unsub();
+      };
+      loadServerData();
     }
   }, [session, status]);
 
@@ -130,30 +128,73 @@ export default function InsightsPage() {
   const peakPerformanceText = maxCount > 0 ? `DAY ${peakDay}` : 'N/A';
   const entropy = avgHabitPct > 70 ? 'LOW' : avgHabitPct > 40 ? 'MEDIUM' : 'HIGH';
 
+  const [chartRange, setChartRange] = useState('week');
+
   // ─── CHART DATA PREP ──────────────────────────────────────────────────────
-  const last7DaysLabels = [];
-  const last7DaysData = [];
-  for (let i = 6; i >= 0; i--) {
-     const date = new Date();
-     date.setDate(date.getDate() - i);
-     last7DaysLabels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
-     const mKey = `${date.getFullYear()}-${date.getMonth()}`;
-     const dNum = date.getDate();
-     const hCount = habits.filter(h => checked[h.id]?.[mKey]?.[dNum]).length;
-     last7DaysData.push(hCount);
+  const lineLabels = [];
+  const lineData = [];
+
+  if (chartRange === 'week') {
+    for (let i = 6; i >= 0; i--) {
+       const date = new Date();
+       date.setDate(date.getDate() - i);
+       lineLabels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+       const mKey = `${date.getFullYear()}-${date.getMonth()}`;
+       const dNum = date.getDate();
+       const hCount = habits.filter(h => checked[h.id]?.[mKey]?.[dNum]).length;
+       lineData.push(hCount);
+    }
+  } else if (chartRange === 'month') {
+    for (let i = 29; i >= 0; i--) {
+       const date = new Date();
+       date.setDate(date.getDate() - i);
+       lineLabels.push(i % 5 === 0 ? `${date.getDate()} ${date.toLocaleDateString('en-US', { month: 'short' })}` : '');
+       const mKey = `${date.getFullYear()}-${date.getMonth()}`;
+       const dNum = date.getDate();
+       const hCount = habits.filter(h => checked[h.id]?.[mKey]?.[dNum]).length;
+       lineData.push(hCount);
+    }
+  } else if (chartRange === '6months') {
+    for (let i = 5; i >= 0; i--) {
+       const date = new Date();
+       date.setMonth(date.getMonth() - i);
+       lineLabels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+       const mKey = `${date.getFullYear()}-${date.getMonth()}`;
+       let total = 0;
+       for (const h of habits) {
+         if (checked[h.id]?.[mKey]) {
+            total += Object.values(checked[h.id][mKey]).filter(Boolean).length;
+         }
+       }
+       lineData.push(total);
+    }
+  } else if (chartRange === 'year') {
+    for (let i = 11; i >= 0; i--) {
+       const date = new Date();
+       date.setMonth(date.getMonth() - i);
+       lineLabels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+       const mKey = `${date.getFullYear()}-${date.getMonth()}`;
+       let total = 0;
+       for (const h of habits) {
+         if (checked[h.id]?.[mKey]) {
+            total += Object.values(checked[h.id][mKey]).filter(Boolean).length;
+         }
+       }
+       lineData.push(total);
+    }
   }
 
   const lineChartData = {
-    labels: last7DaysLabels,
+    labels: lineLabels,
     datasets: [{
-      label: 'Performance Flow',
-      data: last7DaysData,
+      label: chartRange === 'week' || chartRange === 'month' ? 'Daily Completions' : 'Monthly Completions',
+      data: lineData,
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
       tension: 0.4,
-      pointRadius: 4,
-      pointHoverRadius: 6,
+      pointRadius: chartRange === 'year' || chartRange === '6months' ? 6 : 4,
+      pointHoverRadius: 8,
     }]
   };
 
@@ -273,9 +314,22 @@ export default function InsightsPage() {
         {/* Consolidated Charts Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-[40px] p-6 border border-[var(--border)] h-[300px] flex flex-col">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] mb-6 flex items-center gap-2">
-                 <i className="fas fa-chart-line text-[#3b82f6]" /> Performance Momentum
-              </h3>
+              <div className="flex items-center justify-between mb-6">
+                 <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-2">
+                    <i className="fas fa-chart-line text-[#3b82f6]" /> Performance Momentum
+                 </h3>
+                 <select 
+                   value={chartRange} 
+                   onChange={(e) => setChartRange(e.target.value)}
+                   className="bg-[var(--surface)] text-[10px] font-black uppercase tracking-widest p-2 rounded-xl outline-none border border-[var(--border)] cursor-pointer"
+                   style={{ color: 'var(--text-primary)' }}
+                 >
+                   <option value="week">1 Week</option>
+                   <option value="month">1 Month</option>
+                   <option value="6months">6 Months</option>
+                   <option value="year">1 Year</option>
+                 </select>
+              </div>
               <div className="flex-1 min-h-0">
                  <Line data={lineChartData} options={chartOptions} />
               </div>

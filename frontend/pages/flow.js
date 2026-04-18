@@ -5,16 +5,15 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NavBar from '@/components/NavBar';
 import { useTheme } from '@/pages/_app';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { fetchTrackerData, syncTrackerData } from '@/lib/api';
 import { generateStrategicRoadmap } from '@/lib/ai/strategist';
 
 // ─── HABITS DATA ─────────────────────────────────────────────────────────────
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
 const DEFAULT_HABITS = [
-  { id: 1, name: 'Exercise',        emoji: '🏋️', color: '#10b981', goal: 30 },
-  { id: 2, name: 'Reading',         emoji: '📖', color: '#3b82f6', goal: 25 },
+  { id: 1, name: 'Exercise',        emoji: '🏋️', color: '#10b981' },
+  { id: 2, name: 'Reading',         emoji: '📖', color: '#3b82f6' },
 ];
 
 const RECOMMENDED_EMOJIS = ['🏋️', '📖', '💻', '🧘', '🚀', '🗣️', '💧', '🥗', '⚡', '🎯'];
@@ -133,19 +132,15 @@ export default function FlowPage() {
 
   const syncToCloud = async (payload) => {
     if (session?.user?.email) {
-      try { await setDoc(doc(db, 'trackerSync', session.user.email), payload, { merge: true }); }
-      catch (err) { console.error('Cloud Update Failed:', err); }
+      await syncTrackerData(session.user.email, payload);
     }
   };
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.email) {
-      const unsub = onSnapshot(doc(db, 'trackerSync', session.user.email), { includeMetadataChanges: true }, (docSnap) => {
-        if (docSnap.metadata.hasPendingWrites) return;
-
-        if (docSnap.exists()) {
-          // CLOUD IS THE SINGLE SOURCE OF TRUTH — always trust server data
-          const data = docSnap.data();
+      const loadServerData = async () => {
+        const data = await fetchTrackerData(session.user.email);
+        if (data) {
           const cloudH = data.habits || [];
           const cloudC = data.checked || {};
           const cloudT = data.tasks || [];
@@ -158,14 +153,12 @@ export default function FlowPage() {
           setEntries(cloudJ);
           setEduNotes(cloudE);
 
-          // Update local cache to match confirmed cloud state
           localStorage.setItem('at-habits', JSON.stringify(cloudH));
           localStorage.setItem('at-checked', JSON.stringify(cloudC));
           localStorage.setItem('at-tasks', JSON.stringify(cloudT));
           localStorage.setItem('at-journal', JSON.stringify(cloudJ));
           localStorage.setItem('at-edu-notes', JSON.stringify(cloudE));
         } else {
-          // No cloud document exists yet — first-time user, seed cloud from local
           try {
             const lh = JSON.parse(localStorage.getItem('at-habits') || '[]');
             const lc = JSON.parse(localStorage.getItem('at-checked') || '{}');
@@ -177,8 +170,8 @@ export default function FlowPage() {
             }
           } catch(e) {}
         }
-      });
-      return () => unsub();
+      };
+      loadServerData();
     }
   }, [session, status]);
 
@@ -189,9 +182,9 @@ export default function FlowPage() {
     syncToCloud({ habits: h, checked: c });
   };
   const saveTasks = (d) => { 
-    setTasks(d); 
-    localStorage.setItem('at-tasks', JSON.stringify(d));
-    syncToCloud({ tasks: d }); 
+    setTasks(d); //UI Update
+    localStorage.setItem('at-tasks', JSON.stringify(d));//Local Storage Update  
+    syncToCloud({ tasks: d }); //Cloud Update
   };
   const saveEntries = (d) => { 
     setEntries(d); 
@@ -201,7 +194,7 @@ export default function FlowPage() {
 
   const addHabit = () => {
     if (!newHabit.trim()) return;
-    const h = { id: Date.now(), name: newHabit, emoji: selectedEmoji, color: '#3b82f6', goal: 31, priority: 'Medium', logs: {} };
+    const h = { id: Date.now(), name: newHabit, emoji: selectedEmoji, color: '#3b82f6', priority: 'Medium', logs: {} };
     const updated = [...habits, h];
     setHabits(updated);
     localStorage.setItem('at-habits', JSON.stringify(updated));
@@ -249,7 +242,7 @@ export default function FlowPage() {
 
   const addEduNote = () => {
     if (!newNote.trim()) return;
-    const n = { id: Date.now(), text: newNote, goalLink: noteGoal, date: todayStr };
+    const n = { id: Date.now(), text: newNote, goalLink: noteGoal, date: todayStr };//
     const updated = [n, ...eduNotes];
     setEduNotes(updated);
     localStorage.setItem('at-edu-notes', JSON.stringify(updated));
@@ -293,7 +286,7 @@ export default function FlowPage() {
                style={{ background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
               <div className="px-4 py-2 text-center">
                 <div className="text-lg font-black text-[#3b82f6] leading-tight">
-                  {isAuthLoading ? <span className="animate-pulse">--</span> : completedToday}
+                  {isAuthLoading ? <span className="animate-pulse">--</span> : completedToday} 
                 </div>
                 <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Habits</div>
               </div>
@@ -487,12 +480,13 @@ export default function FlowPage() {
                            {Array.from({ length: daysInMonth }).map((_, i) => {
                               const day = i + 1;
                               const isToday = day === currentDay && habitMonth === currentMonth;
+                              const isFuture = habitMonth > currentMonth || (habitMonth === currentMonth && day > currentDay);
                               const isChecked = checked[h.id]?.[monthKey]?.[day];
                               return (
                                 <td key={i} className="p-1">
                                    <button 
                                       onClick={() => {
-                                        if (!isToday) return; // Restrict to today only
+                                        if (isFuture) return; // Cannot track habits in the future
                                         const habitMonthData = checked[h.id] || {};
                                         const currentMonthData = habitMonthData[monthKey] || {};
                                         const updated = { 
@@ -506,12 +500,12 @@ export default function FlowPage() {
                                         localStorage.setItem('at-checked', JSON.stringify(updated));
                                         syncToCloud({ checked: updated });
                                       }}
-                                      className={`w-6 h-6 rounded-[7px] transition-all relative flex items-center justify-center group/btn ${!isToday ? 'cursor-not-allowed opacity-60' : ''}`}
+                                      className={`w-6 h-6 rounded-[7px] transition-all relative flex items-center justify-center group/btn ${isFuture ? 'cursor-not-allowed opacity-20' : ''}`}
                                       style={{ 
                                         backgroundColor: isChecked ? h.color : 'transparent',
-                                        border: isChecked ? `1px solid ${h.color}` : (isToday ? `1px solid ${h.color}40` : '1px solid var(--border-color)')
+                                        border: isChecked ? `1px solid ${h.color}` : (isToday ? `1px solid ${h.color}40` : (isFuture ? `1px solid var(--border-color)` : '1px solid var(--border-color)'))
                                       }}
-                                      title={!isToday ? "You can only track today's habits" : ""}
+                                      title={isFuture ? "Cannot track future habits" : ""}
                                    >
                                       {isChecked ? <i className={`fas fa-check text-[9px] ${isDark ? 'text-black' : 'text-white'}`} /> : <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted-faint)] opacity-0 group-hover/btn:opacity-100" />}
                                    </button>
