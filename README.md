@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎯 Activity Tracker
+# Activity Tracker
 
 **A premium, AI-powered productivity system for tracking habits, managing tasks, journaling reflections, and achieving strategic long-term goals.**
 
@@ -18,16 +18,16 @@ Built with **Next.js** · **Tailwind CSS** · **Chart.js** · **Firebase** · **
 
 ---
 
-## ✨ Features
+## Features
 
-### 📊 Dashboard (`/home`)
+### Dashboard (`/home`)
 - Personalized greeting with real-time date and session info
 - Live performance pulse — tasks engaged, habits active, and system efficiency
 - Weekly performance flow chart
 - Quick-access navigation cards to all modules
 - Protocol Roadmap showing upcoming platform expansions
 
-### 🔄 Flow Sync (`/flow`)
+### Flow Sync (`/flow`)
 The central command hub for your daily workflow.
 - **Habit Tracking** — Visual 28–31 day grid with streak calculations, emoji identities, and month navigation. Safety guards restrict toggling to today's date only.
 - **Task Management** — Priority-based (High/Medium/Low) task tracking with real-time status toggling and progress metrics.
@@ -35,7 +35,7 @@ The central command hub for your daily workflow.
 - **Edu Vault** — A knowledge repository linking study notes directly to strategic goals.
 - **AI Strategic Roadmap** — Real-time AI-powered guidance showing your "Next Best Action," energy levels, and burnout risk analysis.
 
-### 📈 Insights (`/insights`)
+### Insights (`/insights`)
 Advanced behavioral analytics powered by **Chart.js**.
 - **Performance Momentum** — Line chart tracking consistency trends over time
 - **Habit Balance** — Radar chart showing behavioral stability across all habits
@@ -43,14 +43,14 @@ Advanced behavioral analytics powered by **Chart.js**.
 - **Cyclic Activity Heatmap** — GitHub-style contribution grid for monthly activity visualization
 - **Peak Performance Day** computation and **System Entropy** analysis
 
-### 🎯 Strategic Targets (`/targets`)
+### Strategic Targets (`/targets`)
 Long-range goal structuring with progress tracking.
 - Set objectives with custom threshold values
 - Animated progress bars with percentage completion
 - Increment/decrement controls for manual progress updates
 - Cross-device cloud synchronization
 
-### ⏱️ Focus Mode (`/focus`)
+### Focus Mode (`/focus`)
 Dedicated deep work environment for achieving flow state.
 - Immersive focus timers with customizable durations
 - Distraction-free interface designed for maximum concentration
@@ -63,7 +63,7 @@ Platform monitoring and user management.
 
 ---
 
-## 🤖 AI Strategist Engine
+## AI Strategist Engine
 
 The platform includes a behavioral logic engine (`lib/ai/strategist.js`) derived from a meta-analysis of **20,000+ productivity data points** from Kaggle research datasets.
 
@@ -76,7 +76,7 @@ The platform includes a behavioral logic engine (`lib/ai/strategist.js`) derived
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -92,7 +92,7 @@ The platform includes a behavioral logic engine (`lib/ai/strategist.js`) derived
 
 ---
 
-## 🔐 Authentication & Sync
+## Authentication & Sync
 
 - **Secure Login/Signup** via NextAuth.js with bcrypt password hashing
 - **Profile Image Upload** during registration with Firebase Storage
@@ -101,7 +101,7 @@ The platform includes a behavioral logic engine (`lib/ai/strategist.js`) derived
 
 ---
 
-## ⚙️ Local Setup
+## Local Setup
 
 1. **Clone the repository:**
    ```bash
